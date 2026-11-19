@@ -1,0 +1,13 @@
+services:
+    - type: web
+    name: cv-backend
+    env: bun
+    buildCommand: bun install
+    startCommand: bun run server.ts
+    envVars:
+            - key: GROQ_API_KEY
+        sync: false
+            - key: OPENROUTER_API_KEY
+        sync: false
+            - key: GEMINI_API_KEY
+        sync: false
