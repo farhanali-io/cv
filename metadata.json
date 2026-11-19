@@ -1,0 +1,6 @@
+{
+  "name": "ResumeAI",
+  "description": "Make your resume ATS-proof. Upload your resume and target job description for instant ATS scoring, missing keyword analysis, AI refinement, and multi-format export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
