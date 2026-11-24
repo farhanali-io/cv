@@ -67,7 +67,7 @@ export function HelpModal({ isOpen, onClose }: HelpModalProps) {
               <p className="text-xs leading-relaxed text-slate-500">
                 Pick an ATS-friendly template, let AI refine up to 3 passes until
                 scoring 85+, edit any section inline with AI Rewrite, and export to
-                PDF, DOCX, or TXT.
+                PDF.
               </p>
             </div>
           </div>

@@ -167,8 +167,18 @@ export default function App() {
         analysis: data,
         appliedKeywords: [],
         appliedSuggestionIds: [],
-        header: prev.sections.length > 0 ? prev.header : draft.header,
-        sections: prev.sections.length > 0 ? prev.sections : draft.sections,
+        // FIX: New PDF upload always wins — stale localStorage header/sections must NOT block it
+        header: {
+          ...prev.header,
+          ...draft.header,
+          name: draft.header.name || prev.header.name,
+          email: draft.header.email || prev.header.email,
+          phone: draft.header.phone || prev.header.phone,
+          address: draft.header.address || prev.header.address,
+          title: draft.header.title || prev.header.title,
+          linkedin: draft.header.linkedin || prev.header.linkedin,
+        },
+        sections: draft.sections,
         step: 2,
         maxReachedStep: prev.maxReachedStep < 2 ? 2 : prev.maxReachedStep,
       }));
@@ -189,13 +199,9 @@ export default function App() {
         ? prev.appliedKeywords.filter((k) => k !== keyword)
         : [...prev.appliedKeywords, keyword];
 
-      let nextResumeText = prev.resumeText;
-      if (
-        !alreadyAdded &&
-        !prev.resumeText.toLowerCase().includes(keyword.toLowerCase())
-      ) {
-        nextResumeText = `${prev.resumeText.trim()}\nAdded Keyword Focus: ${keyword}`;
-      }
+      // FIX: Keyword ko resumeText me append mat karo — warna Step 3/4 me
+      // parser usko hi CV ka section samajh leta hai. Sirf appliedKeywords list me rakho.
+      const nextResumeText = prev.resumeText;
 
       return {
         ...prev,
@@ -410,7 +416,14 @@ export default function App() {
               setState((prev) => ({ ...prev, resumeText: text }))
             }
             onChangeFileName={(name) =>
-              setState((prev) => ({ ...prev, fileName: name }))
+              setState((prev) => ({
+                ...prev,
+                fileName: name,
+                // New file = fresh start, old header/sections must not leak into Step 5
+                header: prev.fileName !== name ? { ...prev.header, name: '', email: '', phone: '', address: '' } : prev.header,
+                sections: prev.fileName !== name ? [] : prev.sections,
+                analysis: prev.fileName !== name ? null : prev.analysis,
+              }))
             }
             onChangeJobTitle={(title) =>
               setState((prev) => ({ ...prev, jobTitle: title }))

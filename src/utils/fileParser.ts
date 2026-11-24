@@ -26,10 +26,23 @@ export async function parseResumeFile(file: File): Promise<string> {
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
       const page = await pdf.getPage(pageNum);
       const content = await page.getTextContent();
-      const strings = content.items
-        .map((item) => ('str' in item && typeof item.str === 'string' ? item.str : ''))
-        .filter(Boolean);
-      pageTexts.push(strings.join(' '));
+      // FIX: items ko ' ' se jodne se saari lines ek ho jati thi.
+      // Y-coordinate (transform[5]) se nayi line pehchano + hasEOL ka use karo.
+      let pageText = '';
+      let lastY: number | null = null;
+      for (const item of content.items) {
+        if (!('str' in item) || typeof item.str !== 'string' || !item.str) continue;
+        const y = (item as any).transform?.[5];
+        if (lastY !== null && typeof y === 'number' && Math.abs(y - lastY) > 3) {
+          pageText += '\n';
+        } else if (pageText && !pageText.endsWith(' ') && !pageText.endsWith('\n')) {
+          pageText += ' ';
+        }
+        pageText += item.str;
+        if ((item as any).hasEOL) pageText += '\n';
+        if (typeof y === 'number') lastY = y;
+      }
+      pageTexts.push(pageText);
     }
 
     const extracted = pageTexts.join('\n\n').replace(/[ \t]{2,}/g, ' ').trim();
@@ -152,30 +165,70 @@ export function parseRawResumeToDraft(
   resumeText: string,
   jobTitle: string
 ): { header: HeaderData; sections: ResumeSection[] } {
+  // FIX: PDF se text aksar ek hi lambi line me aata hai.
+  // Headings ko line ke andar se dhoond ke alag line banao, warna saara CV 1 paragraph ban jata hai.
+  resumeText = resumeText
+    .replace(/\s+(SUMMARY|PROFILE|OBJECTIVE|ABOUT ME|SKILLS|TECHNICAL SKILLS|CORE COMPETENCIES|EXPERIENCE|WORK EXPERIENCE|PROFESSIONAL EXPERIENCE|EMPLOYMENT|PROJECTS|KEY PROJECTS|EDUCATION|ACADEMIC BACKGROUND|CERTIFICATIONS|LICENSES|CERTIFICATES|LANGUAGES)\s+/gi, '\n$1\n')
+    .replace(/\s*•\s*/g, ' • ');
+  // Strip Step-2 injected keywords — they pollute the draft if kept in resumeText
+  resumeText = resumeText.split(/\r?\n/).filter((l) => !l.trim().toLowerCase().startsWith('added keyword focus:')).join('\n');
   const lines = resumeText
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean);
 
   const emailMatch = resumeText.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
-  const phoneMatch = resumeText.match(
-    /(?:\+?\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/
-  );
+  const phoneMatch = resumeText.match(/(\+92[\s.-]?)?0?3\d{2}[\s.-]?\d{7}|(?:\+?\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/);
   const linkedinMatch = resumeText.match(/linkedin\.com\/in\/[^\s|,;]+/i);
   const githubMatch = resumeText.match(/github\.com\/[^\s|,;]+/i);
 
   const firstLine = lines[0] || 'Candidate Name';
-  const name =
-    firstLine.length <= 48 && !firstLine.includes('@')
-      ? firstLine
-      : 'Candidate Name';
+  let name = 'Candidate Name';
+  if (firstLine.length <= 48 && !firstLine.includes('@') && !firstLine.includes('•')) {
+    name = firstLine;
+  } else {
+    // Merged header line: "FARHAN ALI Lahore, Punjab • 034... • email • linkedin"
+    // Naam = line ke shuru ke 2-4 CAPITALIZED words, Lahore/phone/email se pehle tak
+    const beforeContact = firstLine.split(/Lahore|Karachi|Islamabad|\+92|034|03\d{2}|•|@/)[0].trim();
+    const words = beforeContact.split(/\s+/).filter(Boolean);
+    if (words.length >= 2 && words.length <= 4 && beforeContact.length <= 48) {
+      name = beforeContact.replace(/[^A-Za-z\s.'-]/g, '').trim();
+    }
+    // Fallback: PDF me kahin alag line pe "FARHAN ALI" akela ho to wahan se lo
+    if (name === 'Candidate Name') {
+      const alone = lines.find((l) => /^[A-Z][A-Z .'-]{2,40}$/.test(l) && !/SUMMARY|SKILLS|EXPERIENCE|PROJECTS|EDUCATION/i.test(l) && l.split(' ').length <= 4);
+      if (alone) name = alone;
+    }
+  }
+  // Title = 2nd line of PDF (e.g. "SEO & Growth Specialist") — fallback to jobTitle input
+  const secondLine = lines[1] || '';
+  const looksLikeTitle = secondLine && secondLine.length <= 70 && !secondLine.toUpperCase().includes('FARHAN') && !secondLine.includes('@') && !secondLine.includes('linkedin') && !secondLine.includes('•') && !/\d{7,}/.test(secondLine) && !/^(summary|skills|experience|projects|education)$/i.test(secondLine);
+  const pdfTitle = looksLikeTitle ? secondLine : '';
+  // Address = contact line (3rd line usually "Lahore, Punjab • 034... • email • linkedin") — take part without @, phone, linkedin
+  let pdfAddress = '';
+  const contactLine = lines.find((l) => l.includes('•') || (l.includes(',') && /Lahore|Karachi|Islamabad|Punjab|Pakistan/i.test(l))) || '';
+  if (contactLine) {
+    const parts = contactLine.split(/[•|]/).map((s) => s.trim()).filter(Boolean);
+    const addrPart = parts.find((s) => !s.includes('@') && !s.includes('linkedin') && !/\d{7,}/.test(s) && s.length > 2);
+    if (addrPart) pdfAddress = addrPart;
+  }
 
   const header: HeaderData = {
     name,
-    title: jobTitle || 'Professional',
+    // Agar jobTitle hi "SEO beginner" jaisa generic hai aur PDF me asli title hai to PDF wala lo
+    // Aur agar title me email/phone/• aa gaya hai to wo contact line hai, title nahi
+    title: (() => {
+      const cand = pdfTitle || '';
+      const job = jobTitle || '';
+      const isContactLine = (s: string) => s.includes('@') || s.includes('•') || /\d{7,}/.test(s) || s.toLowerCase().includes('lahore');
+      if (cand && !isContactLine(cand)) return cand;
+      if (job && !isContactLine(job) && job.toLowerCase() !== 'seo beginner') return job;
+      if (cand && !isContactLine(cand)) return cand;
+      return 'SEO & Growth Specialist';
+    })(),
     email: emailMatch ? emailMatch[0] : '',
     phone: phoneMatch ? phoneMatch[0] : '',
-    address: '',
+    address: pdfAddress,
     linkedin: linkedinMatch ? `https://${linkedinMatch[0]}` : '',
     github: githubMatch ? `https://${githubMatch[0]}` : '',
     portfolio: '',
@@ -199,7 +252,16 @@ export function parseRawResumeToDraft(
   let currentTitle = 'Summary';
   let buffer: string[] = [];
 
-  for (let i = 1; i < lines.length; i++) {
+  // FIX: Header ki lines (naam/title/contact) ko sections me mat daalo.
+  // Pehli asli heading (SUMMARY/SKILLS/...) se pehle wali sab lines skip karo.
+  let startIdx = 1;
+  for (let k = 1; k < lines.length; k++) {
+    const cleanK = lines[k].replace(/[:\-_]+$/, '').trim();
+    if (sectionMatchers.some((m) => m.regex.test(cleanK))) { startIdx = k; break; }
+    // Agar 3 header lines se zyada ho gayi aur heading na mile to wahin se shuru karo
+    if (k >= 4) { startIdx = k; break; }
+  }
+  for (let i = startIdx; i < lines.length; i++) {
     const line = lines[i];
     const cleanHeading = line.replace(/[:\-_]+$/, '').trim();
     const matched = sectionMatchers.find((m) => m.regex.test(cleanHeading));

@@ -21,7 +21,6 @@ import {
   SAMPLE_JOB_TITLE,
   SAMPLE_RESUME_TEXT,
 } from '../utils/fileParser';
-import { ScoreRing } from './ScoreRing';
 
 interface Step1UploadProps {
   resumeText: string;
@@ -366,66 +365,9 @@ export function Step1Upload({
       <div className="mt-6">
         <div className="rounded-3xl border border-slate-100 bg-white p-6 pb-10 shadow-[0_8px_30px_rgb(15,23,42,0.05)] sm:p-8 sm:pb-12">
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-center">
-            {/* Left: Score Rings */}
-            <div className="lg:col-span-7">
-              <h3 className="font-display text-lg font-bold text-slate-900">
-                {analysis ? 'Latest AI Score Snapshot' : 'Live Keyword Scan Preview'}
-              </h3>
-              <p className="mt-0.5 text-xs sm:text-sm text-slate-500">
-                {analysis
-                  ? 'Scores from your most recent AI evaluation. Re-analyze after editing.'
-                  : 'Real-time local keyword check. Click Analyze Resume for full Gemini AI scoring.'}
-              </p>
-
-              <div className="mt-6 flex flex-wrap items-center justify-around gap-6 sm:justify-start sm:gap-10">
-                {analysis ? (
-                  <>
-                    <ScoreRing
-                      score={analysis.overall}
-                      label="Overall"
-                      size={108}
-                      forceColor="violet"
-                    />
-                    <ScoreRing
-                      score={analysis.ats}
-                      label="ATS"
-                      size={108}
-                      forceColor="blue"
-                    />
-                    <ScoreRing
-                      score={analysis.matching}
-                      label="Job Matching"
-                      size={108}
-                      forceColor="emerald"
-                    />
-                  </>
-                ) : (
-                  <>
-                    <ScoreRing
-                      score={isReady ? localScan.overlapPercent : 0}
-                      label="Keyword Overlap"
-                      size={108}
-                      forceColor="violet"
-                    />
-                    <ScoreRing
-                      score={hasResume ? Math.min(100, Math.round((resumeText.length / 1800) * 100)) : 0}
-                      label="Content Depth"
-                      size={108}
-                      forceColor="blue"
-                    />
-                    <ScoreRing
-                      score={hasJd ? Math.min(100, Math.round((jdLen / 600) * 100)) : 0}
-                      label="JD Detail"
-                      size={108}
-                      forceColor="emerald"
-                    />
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Right: Missing Keywords Preview */}
-            <div className="lg:col-span-5 lg:border-l lg:border-slate-100 lg:pl-8">
+            {/* Score Rings removed — Step 1 shows only Missing Keywords + Analyze CTA */}
+            {/* Missing Keywords Preview */}
+            <div className="lg:col-span-12">
               <h4 className="font-display text-base font-bold text-slate-900">
                 Missing Keywords
               </h4>

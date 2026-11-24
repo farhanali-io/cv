@@ -25,7 +25,7 @@ import type {
   TemplateId,
 } from '../types';
 import { ResumePreview } from './ResumePreview';
-import { exportDOCX, exportPDF, exportTXT } from '../utils/exportResume';
+import { exportPDF } from '../utils/exportResume';
 
 interface Step5FinalEditorProps {
   header: HeaderData;
@@ -240,25 +240,7 @@ export function Step5FinalEditor({
 
           <button
             type="button"
-            onClick={() => exportTXT(header, sections)}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 whitespace-nowrap"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            <span>TXT</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => exportDOCX(header, sections, template)}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 whitespace-nowrap"
-          >
-            <FileDown className="h-3.5 w-3.5 text-blue-600" />
-            <span>DOCX</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={exportPDF}
+            onClick={() => exportPDF(header, sections, template)}
             className="inline-flex items-center gap-1.5 rounded-xl bg-[#7C3AED] px-4 py-2 text-xs font-bold text-white shadow-md shadow-violet-600/20 transition-all hover:bg-[#6D28D9] whitespace-nowrap"
           >
             <Printer className="h-3.5 w-3.5" />
@@ -475,33 +457,59 @@ export function Step5FinalEditor({
                 )}
 
                 {aiSuggestion && (
-                  <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+                  <div className="mt-3 rounded-2xl border-2 border-emerald-300 bg-emerald-50/80 p-4 shadow-[0_12px_30px_rgba(16,185,129,0.18)] ring-1 ring-emerald-200 animate-in fade-in slide-in-from-top-2">
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800">
                         <Sparkles className="h-3.5 w-3.5 text-[#10B981]" />
-                        <span>AI Improved Version</span>
+                        <span>✨ AI Improved Version — Click text to use it</span>
                       </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleReplaceWithAi(section.id)}
-                          className="inline-flex items-center gap-1 rounded-lg bg-[#10B981] px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-600"
-                        >
-                          <Check className="h-3 w-3" />
-                          <span>Replace</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDismissAi(section.id)}
-                          className="rounded-lg p-1 text-slate-500 hover:bg-white hover:text-slate-800"
-                          aria-label="Dismiss AI suggestion"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDismissAi(section.id)}
+                        className="rounded-lg p-1.5 text-slate-500 hover:bg-white hover:text-red-600 border border-transparent hover:border-red-200"
+                        aria-label="Dismiss AI suggestion"
+                        title="Dismiss — keep old text"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
                     </div>
-                    <div className="rounded-xl bg-white/90 p-3 text-xs leading-relaxed text-slate-700 whitespace-pre-wrap border border-emerald-100">
+                    {/* Clickable AI text — click = replace */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      title="Click to replace old text with this AI version"
+                      onClick={() => handleReplaceWithAi(section.id)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleReplaceWithAi(section.id); }}
+                      className="cursor-pointer rounded-xl bg-white p-3.5 text-xs sm:text-sm leading-relaxed text-slate-800 whitespace-pre-wrap border border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50/50 hover:shadow-sm transition-all"
+                    >
                       {aiSuggestion}
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-emerald-700/80">Tip: Text pe click karo to ye purane text se replace ho jayega.</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleReplaceWithAi(section.id)}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-[#10B981] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-600"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        <span>✅ Use This — Replace</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isRewriting}
+                        onClick={() => handleAiRewrite(section)}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-violet-300 bg-white px-4 py-2 text-xs font-bold text-[#7C3AED] hover:bg-violet-50 disabled:opacity-60"
+                      >
+                        {isRewriting ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /><span>Rewriting...</span></> : <><Sparkles className="h-3.5 w-3.5" /><span>🔄 Rewrite Again</span></>}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDismissAi(section.id)}
+                        className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-red-600"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        <span>Dismiss</span>
+                      </button>
                     </div>
                   </div>
                 )}
